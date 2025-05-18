@@ -1,0 +1,32 @@
+@use "../mixins.scss";
+
+.audioWaveform {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  position: relative;
+
+  canvas {
+    @include mixins.border($hoverable: false);
+
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+
+    width: 100%;
+    height: 10rem;
+
+    &.preview {
+      cursor: move;
+    }
+
+    &.full,
+    &.fullOverlay {
+      height: 2.5rem;
+    }
+
+    &.fullOverlay {
+      position: absolute;
+      z-index: 1;
+    }
+  }
+}

@@ -1,0 +1,9 @@
+@mixin border($hoverable: true) {
+  border: 1px solid var(--border-color);
+
+  @if $hoverable {
+    &:hover {
+      border: 1px solid var(--border-color-hover);
+    }
+  }
+}
