@@ -500,6 +500,7 @@ const AudioWaveform: React.FC<Props> = ({
     }
 
     function onWheel(e: WheelEvent) {
+      e.preventDefault();
       const canvasBounds = o!.getBoundingClientRect();
       const mouseX = e.clientX - canvasBounds.x;
       // const mouseY = e.clientY - canvasBounds.y;

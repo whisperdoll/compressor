@@ -99,15 +99,15 @@ function App() {
 
     const uncompressed = renderBuffer(audioBuffer, viewport, 0, 1, 0, 0);
 
-    for (let i = 0; i < uncompressed.numberOfChannels; i++) {
-      const newCanvas = document.createElement("canvas");
-      newCanvas.height = 200;
-      drawSamples(newCanvas, Array.from(uncompressed.getChannelData(i)), 500);
-      const label = document.createElement("div");
-      label.innerText = `Uncompressed Channel ${i}`;
-      document.body.appendChild(label);
-      document.body.appendChild(newCanvas);
-    }
+    // for (let i = 0; i < uncompressed.numberOfChannels; i++) {
+    //   const newCanvas = document.createElement("canvas");
+    //   newCanvas.height = 200;
+    //   drawSamples(newCanvas, Array.from(uncompressed.getChannelData(i)), 500);
+    //   const label = document.createElement("div");
+    //   label.innerText = `Uncompressed Channel ${i}`;
+    //   document.body.appendChild(label);
+    //   document.body.appendChild(newCanvas);
+    // }
 
     uncompressedBufferSrc.current = currentSource.current =
       audioContext().current.createBufferSource();
@@ -146,15 +146,15 @@ function App() {
       release
     );
 
-    for (let i = 0; i < compressed.numberOfChannels; i++) {
-      const newCanvas = document.createElement("canvas");
-      newCanvas.height = 200;
-      drawSamples(newCanvas, Array.from(compressed.getChannelData(i)), 500);
-      const label = document.createElement("div");
-      label.innerText = `Compressed Channel ${i}`;
-      document.body.appendChild(label);
-      document.body.appendChild(newCanvas);
-    }
+    // for (let i = 0; i < compressed.numberOfChannels; i++) {
+    //   const newCanvas = document.createElement("canvas");
+    //   newCanvas.height = 200;
+    //   drawSamples(newCanvas, Array.from(compressed.getChannelData(i)), 500);
+    //   const label = document.createElement("div");
+    //   label.innerText = `Compressed Channel ${i}`;
+    //   document.body.appendChild(label);
+    //   document.body.appendChild(newCanvas);
+    // }
 
     console.log({ compressed });
 
