@@ -473,12 +473,23 @@ function drawPlayState(
 
   const { width, height } = canvas;
 
+  const durationInViewport =
+    (viewport.length / buffer.length) * buffer.duration;
+
+  // const latencyCompensation = -durationInViewport / 1.5;
+  const x =
+    Math.round((playState.time / durationInViewport) * width) -
+    // latencyCompensation +
+    0.5;
+
+  ctx.globalCompositeOperation = "source-atop";
+  ctx.fillStyle = "rgba(0, 0, 200, 0.3)";
+  ctx.fillRect(0, 0, x, height);
+
+  ctx.globalCompositeOperation = "source-over";
   ctx.beginPath();
   ctx.strokeStyle = "white";
   ctx.lineWidth = 2;
-  const durationInViewport =
-    (viewport.length / buffer.length) * buffer.duration;
-  const x = Math.round((playState.time / durationInViewport) * width) + 0.5;
   ctx.moveTo(x, 0);
   ctx.lineTo(x, height);
   ctx.stroke();

@@ -41,6 +41,7 @@ export default function compress(
 
   let gain = 1;
   const ret: number[] = Array(samples.length).fill(0);
+  let max = 0;
 
   for (let i = 0; i < samples.length; i++) {
     const sample = samples[i];
@@ -57,7 +58,8 @@ export default function compress(
     const coef = targetGain < gain ? attackCoef : releaseCoef;
     gain = gain * coef + targetGain * (1 - coef);
 
-    ret[i] = clamp(sample * gain, -1, 1);
+    const newSample = clamp(sample * gain, -1, 1);
+    ret[i] = newSample;
   }
 
   return ret;

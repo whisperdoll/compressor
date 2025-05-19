@@ -7,13 +7,17 @@ export function renderBuffer(
   threshold: number,
   ratio: number,
   attack: number,
-  release: number
+  release: number,
+  normalizeGain?: boolean
 ): AudioBuffer {
   const buffer = new AudioBuffer({
     length: viewport.length,
     sampleRate: source.sampleRate,
     numberOfChannels: source.numberOfChannels,
   });
+
+  let max = 0;
+  const channels: number[][] = [];
 
   for (let channel = 0; channel < source.numberOfChannels; channel++) {
     const data = source
@@ -28,7 +32,29 @@ export function renderBuffer(
       releaseMs: release,
     });
 
-    buffer.copyToChannel(new Float32Array(compressed), channel);
+    compressed.forEach((sample) => {
+      if (Math.abs(sample) > max) {
+        max = Math.abs(sample);
+      }
+    });
+
+    channels.push(compressed);
   }
+
+  if (normalizeGain) {
+    const gainNormalizationFactor = 1 / max;
+
+    for (let channel = 0; channel < source.numberOfChannels; channel++) {
+      const data = channels[channel];
+      for (let i = 0; i < data.length; i++) {
+        data[i] *= gainNormalizationFactor;
+      }
+    }
+  }
+
+  for (let channel = 0; channel < source.numberOfChannels; channel++) {
+    buffer.copyToChannel(new Float32Array(channels[channel]), channel);
+  }
+
   return buffer;
 }

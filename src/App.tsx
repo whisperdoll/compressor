@@ -36,6 +36,8 @@ function App() {
   const currentSource = useRef<AudioBufferSourceNode | null>(null);
   const animationFrame = useRef<number>(0);
   const startTime = useRef<number>(0);
+  const [normalizeGain, setNormalizeGain] = useState(true);
+  const renderedWaveformsContainerRef = useRef<HTMLDivElement>(null);
 
   const audioContext: () => React.MutableRefObject<AudioContext> = () => {
     if (!_audioContextRef.current)
@@ -97,17 +99,30 @@ function App() {
       stop();
     }
 
-    const uncompressed = renderBuffer(audioBuffer, viewport, 0, 1, 0, 0);
+    const uncompressed = renderBuffer(
+      audioBuffer,
+      viewport,
+      0,
+      1,
+      0,
+      0,
+      normalizeGain
+    );
 
-    // for (let i = 0; i < uncompressed.numberOfChannels; i++) {
-    //   const newCanvas = document.createElement("canvas");
-    //   newCanvas.height = 200;
-    //   drawSamples(newCanvas, Array.from(uncompressed.getChannelData(i)), 500);
-    //   const label = document.createElement("div");
-    //   label.innerText = `Uncompressed Channel ${i}`;
-    //   document.body.appendChild(label);
-    //   document.body.appendChild(newCanvas);
-    // }
+    if (renderedWaveformsContainerRef.current) {
+      renderedWaveformsContainerRef.current.innerHTML = "";
+      for (let i = 0; i < uncompressed.numberOfChannels; i++) {
+        const newCanvas = document.createElement("canvas");
+        newCanvas.height = 200;
+        drawSamples(newCanvas, Array.from(uncompressed.getChannelData(i)), 500);
+        const label = document.createElement("div");
+        label.innerText = `Uncompressed Channel ${i}`;
+        const container = document.createElement("div");
+        container.appendChild(label);
+        container.appendChild(newCanvas);
+        renderedWaveformsContainerRef.current?.appendChild(container);
+      }
+    }
 
     uncompressedBufferSrc.current = currentSource.current =
       audioContext().current.createBufferSource();
@@ -143,18 +158,24 @@ function App() {
       threshold,
       ratio,
       attack,
-      release
+      release,
+      normalizeGain
     );
 
-    // for (let i = 0; i < compressed.numberOfChannels; i++) {
-    //   const newCanvas = document.createElement("canvas");
-    //   newCanvas.height = 200;
-    //   drawSamples(newCanvas, Array.from(compressed.getChannelData(i)), 500);
-    //   const label = document.createElement("div");
-    //   label.innerText = `Compressed Channel ${i}`;
-    //   document.body.appendChild(label);
-    //   document.body.appendChild(newCanvas);
-    // }
+    if (renderedWaveformsContainerRef.current) {
+      renderedWaveformsContainerRef.current.innerHTML = "";
+      for (let i = 0; i < compressed.numberOfChannels; i++) {
+        const newCanvas = document.createElement("canvas");
+        newCanvas.height = 200;
+        drawSamples(newCanvas, Array.from(compressed.getChannelData(i)), 500);
+        const label = document.createElement("div");
+        label.innerText = `Compressed Channel ${i}`;
+        const container = document.createElement("div");
+        container.appendChild(label);
+        container.appendChild(newCanvas);
+        renderedWaveformsContainerRef.current?.appendChild(container);
+      }
+    }
 
     console.log({ compressed });
 
@@ -275,7 +296,29 @@ function App() {
                     </>
                   )}
                 </button>
+                <div className="row gap-1">
+                  <label className="pointer checkboxLabel">
+                    <input
+                      type="checkbox"
+                      checked={normalizeGain}
+                      onChange={(e) =>
+                        setNormalizeGain(e.currentTarget.checked)
+                      }
+                    ></input>
+                    <span>Normalize Gain</span>
+                  </label>{" "}
+                  <span
+                    className="hint"
+                    title="When playing either version, scale the volume up as much as possible without clipping."
+                  >
+                    (?)
+                  </span>
+                </div>
                 <audio ref={audioRef} />
+                <div
+                  className="renderedWaveformsContainer"
+                  ref={renderedWaveformsContainerRef}
+                ></div>
               </div>
             )}
           </>

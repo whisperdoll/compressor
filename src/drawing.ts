@@ -36,7 +36,7 @@ export function drawSamples(
   const midY = height / 2;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "black";
+  ctx.strokeStyle = "white";
 
   // how many samples per pixel column
   const step = Math.ceil(samples.length / width);
