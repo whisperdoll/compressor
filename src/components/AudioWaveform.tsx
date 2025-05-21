@@ -414,6 +414,8 @@ const AudioWaveform: React.FC<Props> = ({
       // if (!isDown) return;
       if (!o) return;
 
+      e.preventDefault();
+
       const canvasBounds = o.getBoundingClientRect();
       const mouseX = e.clientX - canvasBounds.x;
       const mouseY = e.clientY - canvasBounds.y;
@@ -473,6 +475,7 @@ const AudioWaveform: React.FC<Props> = ({
     }
 
     function onDown(e: PointerEvent) {
+      e.preventDefault();
       const canvasBounds = o!.getBoundingClientRect();
       const mouseX = e.clientX - canvasBounds.x;
       const mouseY = e.clientY - canvasBounds.y;
@@ -535,6 +538,7 @@ const AudioWaveform: React.FC<Props> = ({
     }
 
     function onPreviewDown(e: PointerEvent) {
+      e.preventDefault();
       const canvasBounds = p!.getBoundingClientRect();
       const mouseX = e.clientX - canvasBounds.x;
       const mouseY = e.clientY - canvasBounds.y;
@@ -568,8 +572,15 @@ const AudioWaveform: React.FC<Props> = ({
       previewCanvasLastPoint.current = { x: mouseX, y: mouseY };
     }
 
+    const preventDefault = (e: TouchEvent) => {
+      if (previewCanvasMouseDown.current || fullCanvasMouseDown.current) {
+        e.preventDefault();
+      }
+    };
+
     document.addEventListener("pointermove", onMove);
     document.addEventListener("pointermove", onPreviewMove);
+    document.addEventListener("touchmove", preventDefault, { passive: false });
     o.addEventListener("pointerdown", onDown);
     p.addEventListener("pointerdown", onPreviewDown);
     document.addEventListener("pointerup", onUp);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import "./Knob.scss";
 import useUuid from "../hooks/useUuid";
 
@@ -48,18 +48,14 @@ export default function Knob({
   const displayMin = min ?? minHint ?? 0;
   const displayMax = max ?? maxHint ?? 100;
   const displayRange = displayMax - displayMin;
-  const [mouseDown, setMouseDown] = useState(false);
+  const mouseDown = useRef(false);
   const rotateFactor = 100;
   const id = useUuid();
-
-  const handleMouseDown: React.PointerEventHandler = useCallback((e) => {
-    e.preventDefault();
-    setMouseDown(true);
-  }, []);
+  const knobRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleMouseMove = (e: PointerEvent) => {
-      if (!mouseDown) return;
+      if (!mouseDown.current) return;
       e.preventDefault();
 
       let movement = -e.movementY;
@@ -79,15 +75,34 @@ export default function Knob({
     };
 
     const handleMouseUp = () => {
-      setMouseDown(false);
+      mouseDown.current = false;
     };
 
-    document.addEventListener("pointermove", handleMouseMove);
+    const handleTouchMove = (e: TouchEvent) => {
+      if (mouseDown.current) {
+        e.preventDefault();
+      }
+    };
+
+    const handleMouseDown = (e: TouchEvent | MouseEvent) => {
+      e.preventDefault();
+      mouseDown.current = true;
+    };
+
+    knobRef.current?.addEventListener("mousedown", handleMouseDown);
+    knobRef.current?.addEventListener("touchstart", handleMouseDown);
+    document.addEventListener("pointermove", handleMouseMove, {
+      passive: false,
+    });
     document.addEventListener("pointerup", handleMouseUp);
+    document.addEventListener("touchmove", handleTouchMove, { passive: false });
 
     return () => {
       document.removeEventListener("pointermove", handleMouseMove);
       document.removeEventListener("pointerup", handleMouseUp);
+      document.removeEventListener("touchmove", handleTouchMove);
+      knobRef.current?.removeEventListener("mousedown", handleMouseDown);
+      knobRef.current?.removeEventListener("touchstart", handleMouseDown);
     };
   }, [mouseDown, onChange, step, value, min, max, rotateFactor, displayRange]);
 
@@ -100,7 +115,7 @@ export default function Knob({
   return (
     <div className="knobContainer">
       {label && <div>{label}</div>}
-      <div className="knob" onPointerDown={handleMouseDown}>
+      <div className="knob" ref={knobRef}>
         <div
           className="handle"
           style={{

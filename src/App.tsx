@@ -6,6 +6,7 @@ import Knob from "./components/Knob";
 import GoogleIcon from "./components/GoogleIcon";
 import { renderBuffer } from "./audio";
 import { drawSamples } from "./drawing";
+import createWav from "./wav";
 
 export interface PlayState {
   playing: boolean;
@@ -114,7 +115,12 @@ function App() {
       for (let i = 0; i < uncompressed.numberOfChannels; i++) {
         const newCanvas = document.createElement("canvas");
         newCanvas.height = 200;
-        drawSamples(newCanvas, Array.from(uncompressed.getChannelData(i)), 500);
+        newCanvas.width = 800;
+        drawSamples(
+          newCanvas,
+          Array.from(uncompressed.getChannelData(i)),
+          newCanvas.width
+        );
         const label = document.createElement("div");
         label.innerText = `Uncompressed Channel ${i}`;
         const container = document.createElement("div");
@@ -133,16 +139,18 @@ function App() {
       stop();
     };
 
-    startTime.current = audioContext().current.currentTime;
-    uncompressedBufferSrc.current.start();
+    setTimeout(() => {
+      startTime.current = audioContext().current.currentTime;
+      uncompressedBufferSrc.current!.start();
 
-    setPlayState({
-      playing: true,
-      time: 0,
-      currentlyPreviewing: "uncompressed",
+      setPlayState({
+        playing: true,
+        time: 0,
+        currentlyPreviewing: "uncompressed",
+      });
+
+      updateSeekPosition();
     });
-
-    updateSeekPosition();
   }
 
   function playCompressed() {
@@ -167,7 +175,12 @@ function App() {
       for (let i = 0; i < compressed.numberOfChannels; i++) {
         const newCanvas = document.createElement("canvas");
         newCanvas.height = 200;
-        drawSamples(newCanvas, Array.from(compressed.getChannelData(i)), 500);
+        newCanvas.width = 800;
+        drawSamples(
+          newCanvas,
+          Array.from(compressed.getChannelData(i)),
+          newCanvas.width
+        );
         const label = document.createElement("div");
         label.innerText = `Compressed Channel ${i}`;
         const container = document.createElement("div");
@@ -176,8 +189,6 @@ function App() {
         renderedWaveformsContainerRef.current?.appendChild(container);
       }
     }
-
-    console.log({ compressed });
 
     compressedBufferSrc.current = currentSource.current =
       audioContext().current.createBufferSource();
@@ -188,16 +199,46 @@ function App() {
       stop();
     };
 
-    startTime.current = audioContext().current.currentTime;
-    compressedBufferSrc.current.start();
+    setTimeout(() => {
+      startTime.current = audioContext().current.currentTime;
+      compressedBufferSrc.current!.start();
 
-    setPlayState({
-      playing: true,
-      time: 0,
-      currentlyPreviewing: "compressed",
+      setPlayState({
+        playing: true,
+        time: 0,
+        currentlyPreviewing: "compressed",
+      });
+
+      updateSeekPosition();
     });
+  }
 
-    updateSeekPosition();
+  function exportCompressed() {
+    if (!audioBuffer) return;
+
+    const compressed = renderBuffer(
+      audioBuffer,
+      viewport,
+      threshold,
+      ratio,
+      attack,
+      release,
+      normalizeGain
+    );
+
+    console.log(audioBuffer.sampleRate);
+
+    const wav = createWav(compressed);
+
+    const blob = new Blob([wav], { type: "audio/wav" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${files?.[0].name || "audio"}.wav`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   const playingCompressed =
@@ -319,6 +360,9 @@ function App() {
                   className="renderedWaveformsContainer"
                   ref={renderedWaveformsContainerRef}
                 ></div>
+                <button onClick={exportCompressed}>
+                  <GoogleIcon icon="save" /> Export Compressed
+                </button>
               </div>
             )}
           </>
