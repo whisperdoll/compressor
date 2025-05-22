@@ -154,3 +154,40 @@ input[type="checkbox"] {
     }
   }
 }
+
+.legend {
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+
+  & > span {
+    display: flex;
+    flex-direction: row;
+    gap: 0.25rem;
+    align-items: center;
+
+    .colorBlock {
+      width: 0.5rem;
+      height: 0.5rem;
+
+      &.attack {
+        background-color: rgb(255, 127, 100);
+      }
+
+      &.compress {
+        background-color: rgb(255, 255, 100);
+      }
+
+      &.release {
+        background-color: rgb(100, 100, 255);
+      }
+    }
+
+    .label {
+      white-space: nowrap;
+    }
+  }
+}

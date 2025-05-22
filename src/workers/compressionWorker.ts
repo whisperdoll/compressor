@@ -31,6 +31,14 @@ export type MessageData =
       payload: Record<string, ShallowAudioBuffer>;
     }
   | {
+      action: "resizeCanvas";
+      payload: {
+        canvas: string;
+        width: number;
+        height: number;
+      };
+    }
+  | {
       action: "drawWaveform";
       payload: {
         label: string;
@@ -131,6 +139,9 @@ function handleMessage(message: MessageData) {
     case "registerCanvases":
       setupCanvases(message.payload);
       break;
+    case "resizeCanvas":
+      resizeCanvas(message.payload);
+      break;
     case "registerAudioBuffers":
       setupAudioBuffers(message.payload);
       break;
@@ -199,6 +210,14 @@ function setupCanvases(toSetup: Record<string, OffscreenCanvas>) {
       );
     }
   }
+}
+
+function resizeCanvas(
+  opts: (MessageData & { action: "resizeCanvas" })["payload"]
+) {
+  const canvas = canvasFor(opts.canvas);
+  canvas.width = opts.width;
+  canvas.height = opts.height;
 }
 
 function setupAudioBuffers(toSetup: Record<string, ShallowAudioBuffer>) {
@@ -358,23 +377,20 @@ function drawWaveform(props: {
   ctx.lineWidth = 1;
 
   // const [image, pixels, r, g, b] = time("setup pixels", () => {
-  //   const image = ctx.createImageData(width, height);
-  //   const pixels = image.data;
+  const image = ctx.createImageData(width, height);
+  const pixels = image.data;
 
-  //   let { r, g, b } = new Color(color); // You'll need this helper
-  //   r *= 255;
-  //   g *= 255;
-  //   b *= 255;
+  let { r, g, b } = new Color(color);
+  r *= 255;
+  g *= 255;
+  b *= 255;
 
-  //   return [image, pixels, r, g, b];
+  // return [image, pixels, r, g, b];
   // });
   // console.log({ r, g, b });
 
-  const data = buffer.channelData[0].subarray(
-    viewport.startIndex,
-    viewport.startIndex + viewport.length
-  );
-  const step = Math.ceil(data.length / width);
+  const data = buffer.channelData[0];
+  const step = Math.floor(viewport.length / width);
   const amp = height / 2;
 
   // Convert threshold from dBFS to linear amplitude
@@ -384,37 +400,61 @@ function drawWaveform(props: {
 
   let gain = 1;
 
-  ctx.beginPath();
+  // ctx.beginPath();
+  let lastCompressionEngagedMs: number | null = null;
+
+  const durationInViewportMs =
+    (viewport.length / buffer.length) * (buffer.duration * 1000);
+
+  const toLog: Record<string, string | number | boolean | null>[] = [];
+  const startMs =
+    (viewport.startIndex / buffer.length) * (buffer.duration * 1000);
+  let lastFullS = Math.floor(startMs / 1000 - 1);
 
   for (let i = 0; i < width; i++) {
     let min = Infinity;
     let max = -Infinity;
+    const nowMs = startMs + (i / width) * durationInViewportMs;
 
     for (let j = 0; j < step; j++) {
-      let index = i * step + j;
-      if (index >= data.length) {
-        index = data.length - 1;
-      }
-      const sample = data[index];
+      const index = i * step + j;
+      const sample =
+        data[Math.min(index + viewport.startIndex, data.length - 1)];
 
       if (sample < min) min = sample;
       if (sample > max) max = sample;
     }
 
-    [min, max].forEach((sample, i) => {
-      const absSample = Math.abs(sample);
+    let attackEngaged = false;
+    let releaseEngaged = false;
+    let compressionEngaged = false;
+
+    [min, max].forEach((sample, sampleI) => {
+      const absSample = Math.min(Math.abs(sample), 1);
 
       const dbInput = 20 * Math.log10(absSample);
       const dbGainReduction =
         dbInput - threshold - (dbInput - threshold) / ratio;
 
-      const targetGain =
-        absSample > thresholdLinear ? Math.pow(10, -dbGainReduction / 20) : 1;
+      const compressing = absSample > thresholdLinear;
+      compressionEngaged = compressionEngaged || compressing;
+      if (compressing) {
+        lastCompressionEngagedMs = nowMs;
+        // toLog.push({ absSample, thresholdLinear });
+      }
+      const targetGain = compressing ? Math.pow(10, -dbGainReduction / 20) : 1;
+
+      attackEngaged = attackEngaged || (compressing && gain > targetGain);
+      releaseEngaged =
+        releaseEngaged ||
+        (!compressing &&
+          lastCompressionEngagedMs !== null &&
+          nowMs - lastCompressionEngagedMs < release);
 
       const coef = targetGain < gain ? attackCoef : releaseCoef;
       gain = gain * coef + targetGain * (1 - coef);
 
-      if (i === 0) {
+      if (sampleI === 0) {
         min *= gain;
       } else {
         max *= gain;
@@ -422,36 +462,67 @@ function drawWaveform(props: {
     });
 
     // time("write pixels", () => {
-    //   const y1 = Math.max(
-    //     0,
-    //     Math.min(height - 1, Math.round(amp * (1 - min)))
-    //   );
-    //   const y2 = Math.max(
-    //     0,
-    //     Math.min(height - 1, Math.round(amp * (1 - max)))
-    //   );
+    const y1 = Math.max(0, Math.min(height - 1, Math.round(amp * (1 - min))));
+    const y2 = Math.max(0, Math.min(height - 1, Math.round(amp * (1 - max))));
 
-    //   for (let y = y2; y <= y1; y++) {
-    //     const offset = (y * width + i) * 4;
-    //     pixels[offset] = r;
-    //     pixels[offset + 1] = g;
-    //     pixels[offset + 2] = b;
-    //     pixels[offset + 3] = 255;
+    for (let y = y2; y <= y1; y++) {
+      const offset = (y * width + i) * 4;
+      pixels[offset] = r;
+      pixels[offset + 1] = g;
+      pixels[offset + 2] = b;
+      pixels[offset + 3] = 255;
+    }
+
+    const currentFullS = Math.floor(nowMs / 1000);
+    // if (currentFullS > lastFullS) {
+    //   lastFullS = currentFullS;
+
+    //   for (let y = height - 8; y <= height - 1; y++) {
+    //     for (let xi = 0; xi < 2; xi++) {
+    //       const offset = (y * width + i + xi) * 4;
+    //       pixels[offset] = 255;
+    //       pixels[offset + 1] = 255;
+    //       pixels[offset + 2] = 255;
+    //       pixels[offset + 3] = 255;
+    //     }
     //   }
+    // }
+
+    if (compressionEngaged || attackEngaged || releaseEngaged) {
+      const envColor = attackEngaged
+        ? [255, 127, 100, 255]
+        : compressionEngaged
+        ? [255, 255, 100, 255]
+        : [100, 100, 255, 255];
+
+      for (let y = height - 3; y <= height - 1; y++) {
+        for (let xi = 0; xi < 2; xi++) {
+          const offset = (y * width + i + xi) * 4;
+          pixels[offset] = envColor[0];
+          pixels[offset + 1] = envColor[1];
+          pixels[offset + 2] = envColor[2];
+          pixels[offset + 3] = envColor[3];
+        }
+      }
+    }
     // });
 
-    if (i === 0) {
-      ctx.moveTo(i + 0.5, Math.round(amp * (1 + min)) + 0.5);
-    } else {
-      ctx.lineTo(i + 0.5, Math.round(amp * (1 + min)) + 0.5);
-    }
-    ctx.lineTo(i + 0.5, Math.round(amp * (1 + max)) + 0.5);
+    // if (i === 0) {
+    //   ctx.moveTo(i + 0.5, Math.round(amp * (1 + min)) + 0.5);
+    // } else {
+    //   ctx.lineTo(i + 0.5, Math.round(amp * (1 + min)) + 0.5);
+    // }
+    // const [x, y] = [i + 0.5, Math.round(amp * (1 + max)) + 0.5];
+    // ctx.lineTo(x, y);
   }
   // time("putImageData", () => {
-  //   ctx.putImageData(image, 0, 0);
+  ctx.putImageData(image, 0, 0);
+  if (toLog.length) {
+    console.log(toLog);
+  }
   // });
 
-  ctx.stroke();
+  // ctx.stroke();
 
   if (cacheKey) {
     drawCached(cacheKey);
@@ -510,14 +581,14 @@ function drawDbLine(canvas: OffscreenCanvas, db: number, ratio: number) {
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(0, Math.round(height / 2) - 0.5);
-  ctx.lineTo(width, Math.round(height / 2) - 0.5);
+  ctx.lineTo(width, Math.round(height / 2) + 0.5);
   ctx.stroke();
   ctx.strokeStyle = "red";
   ctx.beginPath();
-  ctx.moveTo(0, y);
+  ctx.moveTo(0, y - 1);
   ctx.lineTo(width, y);
   ctx.moveTo(0, y2);
-  ctx.lineTo(width, y2);
+  ctx.lineTo(width, y2 + 1);
   ctx.stroke();
 
   const stops: Array<[number, string]> = [

@@ -38,8 +38,9 @@ export function drawSamples(
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.strokeStyle = "white";
 
+  ctx.beginPath();
   // how many samples per pixel column
-  const step = Math.ceil(samples.length / width);
+  const step = Math.floor(samples.length / width);
 
   for (let x = 0; x < width; x++) {
     const start = x * step;
@@ -56,11 +57,10 @@ export function drawSamples(
     const y1 = midY + min * midY;
     const y2 = midY + max * midY;
 
-    ctx.beginPath();
     ctx.moveTo(x, y1);
     ctx.lineTo(x, y2);
-    ctx.stroke();
   }
+  ctx.stroke();
 }
 
 export function drawWaveform(
@@ -262,7 +262,7 @@ export function drawDbLine(
 
 export function drawViewport(
   canvas: HTMLCanvasElement,
-  buffer: AudioBuffer,
+  bufferLength: number,
   startIndex: number,
   length: number
 ) {
@@ -271,9 +271,9 @@ export function drawViewport(
 
   const { width, height } = canvas;
 
-  const x = (startIndex / buffer.length) * width;
+  const x = (startIndex / bufferLength) * width;
   const y = 0;
-  const w = (length / buffer.length) * width;
+  const w = (length / bufferLength) * width;
   const h = height;
 
   ctx.fillStyle = "rgba(0, 0, 0, 0.4)";

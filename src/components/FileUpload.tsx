@@ -9,7 +9,7 @@ const FileUpload: React.FC<Props> = ({ onUpload }) => {
     <input
       type="file"
       accept="audio/*"
-      onChange={(e) => e.target.files && onUpload(e.target.files)}
+      onChange={(e) => e.target.files?.length && onUpload(e.target.files)}
     />
   );
 };

@@ -226,8 +226,6 @@ function App() {
       normalizeGain
     );
 
-    console.log(audioBuffer.sampleRate);
-
     const wav = createWav(compressed);
 
     const blob = new Blob([wav], { type: "audio/wav" });
@@ -297,6 +295,20 @@ function App() {
               audioBuffer={audioBuffer}
               playState={playState}
             />
+            <div className="legend">
+              <span>
+                <span className="colorBlock attack"></span>
+                <span className="label">Attacking</span>
+              </span>
+              <span>
+                <span className="colorBlock compress"></span>
+                <span className="label">Full Compression</span>
+              </span>
+              <span>
+                <span className="colorBlock release"></span>
+                <span className="label">Releasing</span>
+              </span>
+            </div>
             {readyToPlay && (
               <div className="col gap-2">
                 <button

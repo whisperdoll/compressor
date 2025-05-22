@@ -1,10 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import "./AudioWaveform.scss";
 import { clamp, MaybeWrapped } from "../utils";
 import { PlayState } from "../App";
 import DrawWorker from "../workers/compressionWorker?worker";
 import { MessageData } from "../workers/compressionWorker";
 import { clearCanvas, drawViewport } from "../drawing";
+import Dict from "../dict";
 
 export interface Viewport {
   startIndex: number;
@@ -43,6 +50,7 @@ const AudioWaveform: React.FC<Props> = ({
   const cacheSalt = useRef<number>(0);
   const audioBufferLength = useRef<number>(0);
   const transferredCanvases = useRef(false);
+  const [canvasSizeTrigger, setCanvasSizeTrigger] = useState(0);
 
   const previewCanvasMouseDown = useRef(false);
   const fullCanvasMouseDown = useRef(false);
@@ -84,30 +92,6 @@ const AudioWaveform: React.FC<Props> = ({
     [worker]
   );
 
-  useEffect(() => {
-    if (
-      !previewCanvasRef.current ||
-      !fullCanvasRef.current ||
-      transferredCanvases.current
-    )
-      return;
-
-    transferredCanvases.current = true;
-
-    const transfers = {
-      previewCanvas: previewCanvasRef.current.transferControlToOffscreen(),
-      fullCanvas: fullCanvasRef.current.transferControlToOffscreen(),
-    };
-
-    postWorkerMessage(
-      {
-        action: "registerCanvases",
-        payload: transfers,
-      },
-      Object.values(transfers)
-    );
-  }, [postWorkerMessage]);
-
   const render = useCallback(() => {
     if (
       !fullCanvasRef.current ||
@@ -115,14 +99,13 @@ const AudioWaveform: React.FC<Props> = ({
       !fullOverlayCanvasRef.current ||
       !audioBuffer
     ) {
-      animationFrame.current = requestAnimationFrame(render);
       return;
     }
 
     clearCanvas(fullOverlayCanvasRef.current);
     drawViewport(
       fullOverlayCanvasRef.current,
-      audioBuffer,
+      audioBufferLength.current,
       viewport.startIndex,
       viewport.length
     );
@@ -319,8 +302,8 @@ const AudioWaveform: React.FC<Props> = ({
 
     animationFrame.current = null;
   }, [
-    attack,
     audioBuffer,
+    attack,
     file.name,
     playState,
     postWorkerMessage,
@@ -329,6 +312,61 @@ const AudioWaveform: React.FC<Props> = ({
     threshold,
     viewport,
   ]);
+
+  useEffect(() => {
+    const p = previewCanvasRef.current;
+    const f = fullCanvasRef.current;
+
+    if (!p || !f || transferredCanvases.current) return;
+
+    transferredCanvases.current = true;
+
+    const transfers = {
+      previewCanvas: p,
+      fullCanvas: f,
+    };
+
+    const resizeEvents = Dict.transformedValues(transfers, (canvas, name) => {
+      const event = () => {
+        const size = canvas.getBoundingClientRect();
+        postWorkerMessage({
+          action: "resizeCanvas",
+          payload: {
+            canvas: name,
+            width: Math.floor(size.width) - 2,
+            height: Math.floor(size.height) - 2,
+          },
+        });
+        setCanvasSizeTrigger((prev) => prev + 1);
+      };
+
+      // idk why this doesnt work without a settimeout :eyeroll:
+      setTimeout(() => window.addEventListener("resize", event));
+      return event;
+    });
+
+    const actualTransfers = Dict.transformedValues(transfers, (c) =>
+      c.transferControlToOffscreen()
+    );
+
+    postWorkerMessage(
+      {
+        action: "registerCanvases",
+        payload: actualTransfers,
+      },
+      Object.values(actualTransfers)
+    );
+
+    setTimeout(() => {
+      Object.values(resizeEvents).forEach((fn) => fn());
+    }, 100);
+
+    return () => {
+      Object.values(resizeEvents).forEach((event) =>
+        window.removeEventListener("resize", event)
+      );
+    };
+  }, [postWorkerMessage, render]);
 
   useEffect(() => {
     if (!audioBuffer) return;
@@ -367,6 +405,7 @@ const AudioWaveform: React.FC<Props> = ({
     playState.playing,
     playState.time,
     render,
+    canvasSizeTrigger,
   ]);
 
   useEffect(() => {
@@ -377,9 +416,9 @@ const AudioWaveform: React.FC<Props> = ({
 
     function isInViewport(canvasBounds: DOMRect, x: number) {
       const viewportStart =
-        (viewport.startIndex / audioBuffer!.length) * canvasBounds.width;
+        (viewport.startIndex / audioBufferLength.current) * canvasBounds.width;
       const viewportEnd =
-        ((viewport.startIndex + viewport.length) / audioBuffer!.length) *
+        ((viewport.startIndex + viewport.length) / audioBufferLength.current) *
         canvasBounds.width;
 
       return x >= viewportStart && x <= viewportEnd;
@@ -389,7 +428,7 @@ const AudioWaveform: React.FC<Props> = ({
       const dragZoneLength = 8;
 
       const viewportStart =
-        (viewport.startIndex / audioBuffer!.length) * canvasBounds.width;
+        (viewport.startIndex / audioBufferLength.current) * canvasBounds.width;
 
       const inStart =
         x >= viewportStart - dragZoneLength / 2 &&
@@ -398,7 +437,7 @@ const AudioWaveform: React.FC<Props> = ({
       if (inStart) return "start";
 
       const viewportEnd =
-        ((viewport.startIndex + viewport.length) / audioBuffer!.length) *
+        ((viewport.startIndex + viewport.length) / audioBufferLength.current) *
         canvasBounds.width;
 
       const inEnd =
@@ -422,7 +461,6 @@ const AudioWaveform: React.FC<Props> = ({
 
       if (!fullCanvasMouseDown.current) {
         if (isInDragZone(canvasBounds, mouseX)) {
-          console.log(isInDragZone(canvasBounds, mouseX));
           o.style.cursor = "ew-resize";
         } else if (isInViewport(canvasBounds, mouseX)) {
           o.style.cursor = "move";
@@ -433,7 +471,7 @@ const AudioWaveform: React.FC<Props> = ({
         const normalizedAmount = mouseX / canvasBounds.width;
         setViewport((old) => {
           const startIndex = Math.max(
-            Math.round(normalizedAmount * audioBuffer!.length),
+            Math.round(normalizedAmount * audioBufferLength.current),
             0
           );
 
@@ -446,8 +484,8 @@ const AudioWaveform: React.FC<Props> = ({
         const normalizedAmount = mouseX / canvasBounds.width;
         setViewport((old) => {
           const endIndex = Math.min(
-            Math.round(normalizedAmount * audioBuffer!.length),
-            audioBuffer!.length
+            Math.round(normalizedAmount * audioBufferLength.current),
+            audioBufferLength.current
           );
 
           return {
@@ -458,14 +496,16 @@ const AudioWaveform: React.FC<Props> = ({
       } else if (fullCanvasAction.current === "moving") {
         const deltaX = fullCanvasOriginalPoint.current.x - mouseX;
         const normalizedDeltaX = deltaX / canvasBounds.width;
-        const deltaIndex = Math.round(normalizedDeltaX * audioBuffer!.length);
+        const deltaIndex = Math.round(
+          normalizedDeltaX * audioBufferLength.current
+        );
         setViewport((old) => ({
           startIndex: Math.min(
             Math.max(
               fullCanvasOriginalViewport.current.startIndex - deltaIndex,
               0
             ),
-            audioBuffer!.length - old.length
+            audioBufferLength.current - old.length
           ),
           length: old.length,
         }));
@@ -512,9 +552,9 @@ const AudioWaveform: React.FC<Props> = ({
         const panAmount = e.deltaY * 0.001 * viewport.length;
         setViewport((old) => ({
           startIndex: clamp(
-            old.startIndex - panAmount,
+            Math.round(old.startIndex - panAmount),
             0,
-            audioBuffer!.length + old.length
+            audioBufferLength.current + old.length
           ),
           length: old.length,
         }));
@@ -522,18 +562,21 @@ const AudioWaveform: React.FC<Props> = ({
         const newLength = clamp(
           viewport.length * (1 - (1 / -e.deltaY) * 10),
           0,
-          audioBuffer!.length
+          audioBufferLength.current
         );
         const pc = mouseX / canvasBounds.width;
 
-        setViewport((old) => ({
-          startIndex: clamp(
-            old.startIndex + (old.length - newLength) * pc,
-            0,
-            audioBuffer!.length - newLength
-          ),
-          length: newLength,
-        }));
+        setViewport((old) => {
+          const newViewport = {
+            startIndex: clamp(
+              Math.round(old.startIndex + (old.length - newLength) * pc),
+              0,
+              audioBufferLength.current - newLength
+            ),
+            length: newLength,
+          };
+          return newViewport;
+        });
       }
     }
 
@@ -564,7 +607,7 @@ const AudioWaveform: React.FC<Props> = ({
         startIndex: clamp(
           old.startIndex - deltaIndex,
           0,
-          audioBuffer!.length - old.length
+          audioBufferLength.current - old.length
         ),
         length: old.length,
       }));
